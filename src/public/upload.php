@@ -129,6 +129,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_FILES["file"])) {
     <button type="submit">Upload</button>
 </form>
 
-<p><a href="../dashboard.php">Back to Dashboard</a></p>
+<p><a href="dashboard.php">Back to Dashboard</a></p>
 </body>
 </html>

@@ -1,8 +1,8 @@
 <?php
 // public/posts.php
 session_start();
-require_once 'src/config/db.php';
-require_once 'src/includes/security.php';
+require_once '../config/db.php';
+require_once '../includes/security.php';
 
 // Check if user is logged in
 if (!isset($_SESSION['user_id'])) {

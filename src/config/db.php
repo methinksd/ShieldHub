@@ -7,7 +7,7 @@ class Database {
     private $host = 'localhost';
     private $username = 'root';
     private $password = 'Chegengangav2.1';//Password required
-    private $dbname = 'shieldHub';
+    private $dbname = 'shieldhub';
     public $conn;
 
     // Intentionally vulnerable connection method (for demonstration)

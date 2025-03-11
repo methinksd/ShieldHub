@@ -3,7 +3,7 @@
 session_start();
 require_once '../config/db.php';
 require_once '../includes/security.php';
-
+require_once '../config/connection.php';
 // VULNERABILITY: Potential XSS in user input handling
 class UserRegistration {
     private $db;
@@ -12,7 +12,7 @@ class UserRegistration {
         $this->db = new Database();
     }
 
-    public function register($username, $email, $password): bool
+    public function register($username, $email, $password_hash): bool
     {
         $conn = $this->db->getConnection(); // Intentionally using vulnerable connection
 
@@ -21,9 +21,9 @@ class UserRegistration {
         $email = $conn->real_escape_string($email);
 
         // VULNERABILITY: Weak password hashing
-        $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+        $password_hash = password_hash($password_hash, PASSWORD_DEFAULT);
 
-        $query = "INSERT INTO users (username, email, password) VALUES ($username, $email, $hashed_password)";
+        $query = "INSERT INTO users (username, email, password) VALUES ('$username', '$email', '$password_hash')";
 
         if ($conn->query($query) === TRUE) {
             echo "New record created successfully";
@@ -35,7 +35,7 @@ class UserRegistration {
     }
 
     // Secure registration method (for comparison)
-    public function secureRegister($username, $email, $password): bool
+    public function secureRegister($username, $email, $password, $password_hash): bool
     {
         $conn = $this->db->getSecureConnection();
 
@@ -49,7 +49,7 @@ class UserRegistration {
             $stmt = $conn->prepare("INSERT INTO users (username, email, password) VALUES (:username, :email, :password)");
             $stmt->bindParam(':username', $username);
             $stmt->bindParam(':email', $email);
-            $password_hash = password_hash($password, PASSWORD_DEFAULT);
+            $password_hash = password_hash($password_hash, PASSWORD_DEFAULT);
             $stmt->bindParam(':password', $password_hash);
 
             return $stmt->execute();
@@ -67,9 +67,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     $username = $_POST['username'] ?? '';
     $email = $_POST['email'] ?? '';
-    $password = $_POST['password'] ?? '';
+    $password_hash = $_POST['password'] ?? '';
 
-    if ($registration->register($username, $email, $password)) {
+    if ($registration->register($username, $email, $password_hash)) {
         $_SESSION['message'] = "Registration successful!";
         header("Location: dashboard.php");
         exit();
@@ -82,7 +82,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Register</title>
+    <title>Registration page</title>
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -101,5 +101,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </label>
     <button type="submit">Register</button>
 </form>
+<div class="button">Already have an account?<a href="login.php">Login</a> </div>
 </body>
 </html>
