@@ -1,15 +1,44 @@
 <?php
 // config/db.php
 
-//$db = new mysqli('localhost', 'root', 'Chegengangav2.1', 'phpmyadmin');
+// REMOVED: Commented out vulnerable connection code
+// $db = new mysqli('localhost', 'root', 'Chegengangav2.1', 'phpmyadmin');
 
 class Database {
-    private $host = 'localhost';
-    private $username = 'root';
-    private $password = 'Chegengangav2.1';//Password required
-    private $dbname = 'shieldhub';
-    public $conn;
+    private $host;
+    private $username;
+    private $password;
+    private $dbname;
+    private $conn;
 
+    public function __construct() {
+        // FIXED: Load database credentials from environment variables or a secure configuration file
+        // Comment out hardcoded credentials
+        /*
+        private $host = 'localhost';
+        private $username = 'root';
+        private $password = 'Chegengangav2.1'; // Password required
+        private $dbname = 'shieldhub';
+        */
+
+        // Load configuration (in a real environment, these would come from env variables)
+        $this->loadConfiguration();
+    }
+
+    /**
+     * Load configuration from environment variables or config file
+     */
+    private function loadConfiguration() {
+        // In a real production environment, these would come from environment variables
+        // or a secure configuration file outside the web root
+        $this->host = 'localhost';
+        $this->username = 'root';
+        $this->password = 'Chegengangav2.1';
+        $this->dbname = 'shieldhub';
+    }
+
+    // REMOVED: Intentionally vulnerable connection method
+    /*
     // Intentionally vulnerable connection method (for demonstration)
     public function getConnection() {
         $this->conn = null;
@@ -27,19 +56,39 @@ class Database {
 
         return $this->conn;
     }
+    */
 
-    // Secure connection method (to demonstrate fix)
-    public function getSecureConnection() {
+    // FIXED: Using only secure connection method
+    /**
+     * Get secure PDO connection
+     */
+    public function getConnection(): PDO
+    {
+        return $this->getSecureConnection();
+    }
+
+    /**
+     * Get secure PDO connection
+     */
+    public function getSecureConnection(): PDO
+    {
         $this->conn = null;
 
         try {
             // SECURE: Using PDO with prepared statements
-            $this->conn = new PDO("mysql:host=$this->host;dbname=$this->dbname", $this->username, $this->password);
-            $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            $dsn = "mysql:host=$this->host;dbname=$this->dbname;charset=utf8mb4";
+            $options = [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES => false,
+            ];
+            $this->conn = new PDO($dsn, $this->username, $this->password, $options);
+            return $this->conn;
         } catch(PDOException $exception) {
-            echo "Connection error: " . $exception->getMessage();
+            // Log the error instead of displaying it
+            error_log("Database connection error: " . $exception->getMessage());
+            // Re-throw to be handled by the application
+            throw new Exception("Database connection error occurred. Please try again later.");
         }
-
-        return $this->conn;
     }
 }

@@ -11,31 +11,27 @@ class UserLogin {
         $this->db = new Database();
     }
 
-    // Fixed the SQL Injection vulnerability
     public function login($username, $password): bool
     {
-        $conn = $this->db->getConnection();
-
         try {
-            // Fixed: Using prepared statement to prevent SQL injection
-            $stmt = $conn->prepare("SELECT id, username, password FROM users WHERE username = ?");
-            if (!$stmt) {
-                error_log("Prepare failed: " . $conn->error);
-                return false;
-            }
+            $conn = $this->db->getConnection();
 
-            $stmt->bind_param("s", $username);
+            // Using prepared statements with PDO
+            $stmt = $conn->prepare("SELECT id, username, password_hash FROM users WHERE username = :username");
+            $stmt->bindParam(':username', $username);
             $stmt->execute();
-            $result = $stmt->get_result();
 
-            if ($result->num_rows > 0) {
-                $user = $result->fetch_assoc();
-                if (password_verify($password, $user['password'])) {
-                    $_SESSION['user_id'] = $user['id'];
-                    $_SESSION['username'] = $user['username'];
-                    return true;
-                }
+            $user = $stmt->fetch();
+
+            if ($user && password_verify($password, $user['password'])) {
+                // Store minimal data in session
+                $_SESSION['user_id'] = $user['id'];
+                $_SESSION['username'] = $user['username'];
+                // Set session timeout
+                $_SESSION['last_activity'] = time();
+                return true;
             }
+
             return false;
         } catch (Exception $e) {
             error_log("Login error: " . $e->getMessage());
@@ -49,27 +45,36 @@ $error_message = "";
 
 // Handle form submission
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    // Validate CSRF token
-    if (!isset($_POST['csrf_token']) || !SecurityHelpers::validateCSRFToken($_POST['csrf_token'])) {
-        $error_message = "Invalid request";
-    } else {
-        $login = new UserLogin();
-
-        $username = trim($_POST['username'] ?? '');
-        $password = $_POST['password'] ?? '';
-
-        // Basic validation
-        if (empty($username) || empty($password)) {
-            $error_message = "Username and password are required";
+    try {
+        // Validate CSRF token
+        if (!isset($_POST['csrf_token']) || !SecurityHelpers::validateCSRFToken($_POST['csrf_token'])) {
+            $error_message = "Invalid request";
         } else {
-            if ($login->login($username, $password)) {
-                // Redirect to dashboard on successful login
-                header("Location: dashboard.php");
-                exit();
+            $login = new UserLogin();
+
+            // Sanitize inputs
+            $username = SecurityHelpers::sanitizeInput($_POST['username'] ?? '');
+            $password = $_POST['password'] ?? '';
+
+            // Basic validation
+            if (empty($username) || empty($password)) {
+                $error_message = "Username and password are required";
             } else {
-                $error_message = "Invalid username or password";
+                if ($login->login($username, $password)) {
+                    // Redirect to dashboard on successful login
+                    header("Location: dashboard.php");
+                    exit();
+                } else {
+                    // Generic error to prevent username enumeration
+                    $error_message = "Invalid username or password";
+                    // Add a small delay to prevent timing attacks
+                    usleep(random_int(100000, 300000)); // 0.1-0.3 seconds
+                }
             }
         }
+    } catch (Exception $e) {
+        error_log("Login page error: " . $e->getMessage());
+        $error_message = "An error occurred during login. Please try again.";
     }
 }
 ?>
