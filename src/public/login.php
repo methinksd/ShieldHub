@@ -17,7 +17,7 @@ class UserLogin {
             $conn = $this->db->getConnection();
 
             // Using prepared statements with PDO
-            $stmt = $conn->prepare("SELECT id, username, password_hash FROM users WHERE username = :username");
+            $stmt = $conn->prepare("SELECT id, username, password FROM users WHERE username = :username");
             $stmt->bindParam(':username', $username);
             $stmt->execute();
 

@@ -33,7 +33,7 @@ class Database {
         // or a secure configuration file outside the web root
         $this->host = 'localhost';
         $this->username = 'root';
-        $this->password = 'Chegengangav2.1';
+        $this->password = 'Justleo12#';
         $this->dbname = 'shieldhub';
     }
 
@@ -61,6 +61,7 @@ class Database {
     // FIXED: Using only secure connection method
     /**
      * Get secure PDO connection
+     * @throws Exception
      */
     public function getConnection(): PDO
     {
@@ -69,6 +70,7 @@ class Database {
 
     /**
      * Get secure PDO connection
+     * @throws Exception
      */
     public function getSecureConnection(): PDO
     {

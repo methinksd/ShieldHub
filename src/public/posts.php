@@ -17,7 +17,8 @@ class Posts {
         $this->db = new Database();
     }
 
-    // VULNERABILITY: Potential SQL Injection and XSS
+    // REMOVED: Vulnerable methods with SQL Injection and XSS
+    /*
     public function createPost($user_id, $title, $content) {
         $conn = $this->db->getConnection();
 
@@ -65,21 +66,21 @@ class Posts {
 
         return $posts;
     }
+    */
 
-    // Secure post creation (for comparison)
-    public function secureCreatePost($user_id, $title, $content): array
+    /**
+     * Create a new post using secure methods
+     */
+    public function createPost($user_id, $title, $content): array
     {
         try {
             $conn = $this->db->getSecureConnection();
 
-            // Proper sanitization
-            $title = htmlspecialchars($title, ENT_QUOTES, 'UTF-8');
-            $content = htmlspecialchars($content, ENT_QUOTES, 'UTF-8');
-
+            // Proper sanitization before storing
             $stmt = $conn->prepare("INSERT INTO posts (user_id, title, content) VALUES (:user_id, :title, :content)");
-            $stmt->bindParam(':user_id', $user_id);
-            $stmt->bindParam(':title', $title);
-            $stmt->bindParam(':content', $content);
+            $stmt->bindParam(':user_id', $user_id, PDO::PARAM_INT);
+            $stmt->bindParam(':title', $title, PDO::PARAM_STR);
+            $stmt->bindParam(':content', $content, PDO::PARAM_STR);
 
             if ($stmt->execute()) {
                 return ["success" => true, "message" => "Post created successfully."];
@@ -87,8 +88,54 @@ class Posts {
                 return ["success" => false, "message" => "Error creating post."];
             }
         } catch (Exception $e) {
-            error_log($e->getMessage());
-            return ["success" => false, "message" => "Database error."];
+            error_log("Error creating post: " . $e->getMessage());
+            return ["success" => false, "message" => "Database error occurred."];
+        }
+    }
+
+    /**
+     * Get post with authorization check
+     */
+    public function getPost($post_id, $current_user_id) {
+        try {
+            $conn = $this->db->getSecureConnection();
+
+            // Query with authorization check
+            $stmt = $conn->prepare("SELECT posts.*, users.username FROM posts 
+                               JOIN users ON posts.user_id = users.id 
+                               WHERE posts.id = :post_id AND (posts.user_id = :user_id OR posts.is_public = 1)");
+
+            $stmt->bindParam(':post_id', $post_id, PDO::PARAM_INT);
+            $stmt->bindParam(':user_id', $current_user_id, PDO::PARAM_INT);
+            $stmt->execute();
+
+            if ($stmt->rowCount() > 0) {
+                return $stmt->fetch();
+            }
+            return null;
+        } catch (Exception $e) {
+            error_log("Error fetching post: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Get all posts using secure connection
+     */
+    public function getAllPosts(): array
+    {
+        try {
+            $conn = $this->db->getSecureConnection();
+
+            $stmt = $conn->prepare("SELECT posts.*, users.username FROM posts 
+                               JOIN users ON posts.user_id = users.id 
+                               ORDER BY posts.created_at DESC");
+            $stmt->execute();
+
+            return $stmt->fetchAll();
+        } catch (Exception $e) {
+            error_log("Error fetching all posts: " . $e->getMessage());
+            return [];
         }
     }
 }
@@ -97,16 +144,38 @@ class Posts {
 $result = ["success" => false, "message" => ""];
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $posts = new Posts();
-    $title = $_POST['title'] ?? '';
-    $content = $_POST['content'] ?? '';
+    try {
+        // Validate CSRF token
+        if (!isset($_POST['csrf_token']) || !SecurityHelpers::validateCSRFToken($_POST['csrf_token'])) {
+            $result = ["success" => false, "message" => "Invalid request"];
+        } else {
+            $posts = new Posts();
 
-    $result = $posts->createPost($_SESSION['user_id'], $title, $content);
+            // Sanitize input
+            $title = SecurityHelpers::sanitizeInput($_POST['title'] ?? '');
+            $content = SecurityHelpers::sanitizeInput($_POST['content'] ?? '');
+
+            // Basic validation
+            if (empty($title) || empty($content)) {
+                $result = ["success" => false, "message" => "Title and content are required"];
+            } else {
+                $result = $posts->createPost($_SESSION['user_id'], $title, $content);
+            }
+        }
+    } catch (Exception $e) {
+        error_log("Error in post creation: " . $e->getMessage());
+        $result = ["success" => false, "message" => "An error occurred. Please try again."];
+    }
 }
 
 // Get all posts
-$posts = new Posts();
-$all_posts = $posts->getAllPosts();
+try {
+    $posts = new Posts();
+    $all_posts = $posts->getAllPosts();
+} catch (Exception $e) {
+    error_log("Error fetching posts: " . $e->getMessage());
+    $all_posts = [];
+}
 ?>
 
 <!DOCTYPE html>
@@ -120,7 +189,7 @@ $all_posts = $posts->getAllPosts();
 
 <?php if ($result["message"]): ?>
     <div class="<?php echo $result["success"] ? "success" : "error"; ?>">
-        <?php echo $result["message"]; ?>
+        <?php echo htmlspecialchars($result["message"]); ?>
     </div>
 <?php endif; ?>
 
@@ -135,7 +204,9 @@ $all_posts = $posts->getAllPosts();
         <textarea id="content" name="content" rows="5" required></textarea>
     </div>
 
-    <!-- VULNERABILITY: No CSRF token -->
+    <!-- Added CSRF token for protection -->
+    <input type="hidden" name="csrf_token" value="<?php echo SecurityHelpers::generateCSRFToken(); ?>">
+
     <button type="submit">Create Post</button>
 </form>
 
@@ -147,14 +218,14 @@ $all_posts = $posts->getAllPosts();
     <div class="posts">
         <?php foreach ($all_posts as $post): ?>
             <div class="post">
-                <h3><?php echo $post['title']; ?></h3>
-                <!-- VULNERABILITY: XSS possible here -->
-                <div class="content"><?php echo $post['content']; ?></div>
+                <h3><?php echo htmlspecialchars($post['title']); ?></h3>
+                <!-- Fixed XSS vulnerability with proper escaping -->
+                <div class="content"><?php echo htmlspecialchars($post['content']); ?></div>
                 <div class="meta">
-                    Posted by <?php echo $post['username']; ?> on <?php echo $post['created_at']; ?>
+                    Posted by <?php echo htmlspecialchars($post['username']); ?> on <?php echo htmlspecialchars($post['created_at']); ?>
                 </div>
-                <!-- VULNERABILITY: IDOR possible here -->
-                <a href="public/post.php?id=<?php echo $post['id']; ?>">View Post</a>
+                <!-- Fixed IDOR by using the proper path -->
+                <a href="post.php?id=<?php echo (int)$post['id']; ?>">View Post</a>
             </div>
         <?php endforeach; ?>
     </div>

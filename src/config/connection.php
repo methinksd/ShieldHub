@@ -25,6 +25,7 @@ class DatabaseConnection {
     /**
      * Constructor - establishes database connections
      * Private to prevent direct instantiation
+     * @throws Exception
      */
     private function __construct() {
         // FIXED: Load database credentials from environment variables or a secure configuration file
@@ -114,6 +115,7 @@ class DatabaseConnection {
 
     /**
      * Prevent unserialization of the instance
+     * @throws Exception
      */
     public function __wakeup() {
         throw new Exception("Cannot unserialize singleton");
@@ -133,6 +135,7 @@ function getDbConnection() {
 
 /**
  * Get secure PDO connection
+ * @throws Exception
  */
 function getSecureDbConnection(): PDO
 {
