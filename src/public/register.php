@@ -1,15 +1,20 @@
 <?php
 // public/register.php
 session_start();
-require_once '../config/db.php';
+// Remove db.php inclusion since we're standardizing on connection.php
+// require_once '../config/db.php';
 require_once '../includes/security.php';
 require_once '../config/connection.php';
 
 class UserRegistration {
-    private $db;
+    private $conn;
 
+    /**
+     * @throws Exception
+     */
     public function __construct() {
-        $this->db = new Database();
+        // Use the DatabaseConnection class instead of Database
+        $this->conn = getSecureDbConnection();
     }
 
     /**
@@ -18,8 +23,6 @@ class UserRegistration {
     public function register($username, $email, $password): bool
     {
         try {
-            $conn = $this->db->getSecureConnection();
-
             // Proper input validation
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 throw new Exception("Invalid email format");
@@ -30,18 +33,40 @@ class UserRegistration {
                 throw new Exception("Username must be 3-30 characters and contain only letters, numbers, underscores, and hyphens");
             }
 
+            // Check if username already exists
+            $checkStmt = $this->conn->prepare("SELECT COUNT(*) FROM users WHERE username = :username");
+            $checkStmt->bindParam(':username', $username);
+            $checkStmt->execute();
+
+            if ($checkStmt->fetchColumn() > 0) {
+                throw new Exception("Username already exists");
+            }
+
+            // Check if email already exists
+            $checkStmt = $this->conn->prepare("SELECT COUNT(*) FROM users WHERE email = :email");
+            $checkStmt->bindParam(':email', $email);
+            $checkStmt->execute();
+
+            if ($checkStmt->fetchColumn() > 0) {
+                throw new Exception("Email already exists");
+            }
+
             // Prepared statement to prevent SQL injection
-            $stmt = $conn->prepare("INSERT INTO users (username, email, password) VALUES (:username, :email, :password)");
+            $stmt = $this->conn->prepare("INSERT INTO users (username, email, password) VALUES (:username, :email, :password)");
             $stmt->bindParam(':username', $username);
             $stmt->bindParam(':email', $email);
             $password_hash = password_hash($password, PASSWORD_DEFAULT);
             $stmt->bindParam(':password', $password_hash);
 
             return $stmt->execute();
+        } catch (PDOException $e) {
+            // Log specific database errors
+            error_log("Database error in registration: " . $e->getMessage());
+            throw new Exception("Database error: " . $e->getMessage());
         } catch (Exception $e) {
-            // Proper error handling
+            // Rethrow other exceptions
             error_log("Registration error: " . $e->getMessage());
-            throw $e; // Rethrow to be caught by the handler
+            throw $e;
         }
     }
 }
@@ -75,7 +100,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             }
         }
     } catch (Exception $e) {
-        $error_message = "Database connection error occurred. Please try again later.";
+        // Display more specific error message for debugging
+        $error_message = $e->getMessage();
     }
 }
 ?>
@@ -96,13 +122,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <form method="POST" action="">
     <div class="form-group">
         <label for="username">Username:</label>
-        <input type="text" id="username" name="username" required>
+        <input type="text" id="username" name="username" value="<?php echo htmlspecialchars($username ?? ''); ?>" required>
         <small>3-30 characters, letters, numbers, and _-</small>
     </div>
 
     <div class="form-group">
         <label for="email">Email:</label>
-        <input type="email" id="email" name="email" required>
+        <input type="email" id="email" name="email" value="<?php echo htmlspecialchars($email ?? ''); ?>" required>
     </div>
 
     <div class="form-group">

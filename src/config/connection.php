@@ -28,19 +28,14 @@ class DatabaseConnection {
      * @throws Exception
      */
     private function __construct() {
-        // FIXED: Load database credentials from environment variables or a secure configuration file
-        // Comment out hardcoded credentials
-        /*
-        private $host = 'localhost';
-        private $username = 'root';
-        private $password = 'Chegengangav2.1'; // Use your phpMyAdmin password here
-        private $dbname = 'shieldhub';
-        */
+        // First check if PDO MySQL driver is available
+        if (!extension_loaded('pdo_mysql')) {
+            error_log("PDO MySQL driver is not installed");
+            throw new Exception("Database connection error occurred: could not find driver. Please install PDO MySQL extension.");
+        }
 
         // Load from environment variables or config file
         $this->loadConfiguration();
-
-        // FIXED: Removed insecure mysqli connection and kept only secure PDO connection
 
         // Create PDO connection (secure)
         try {
@@ -52,10 +47,10 @@ class DatabaseConnection {
             ];
             $this->securePdo = new PDO($dsn, $this->username, $this->password, $options);
         } catch (PDOException $e) {
-            // Log error but don't display to user
-            error_log("PDO Connection error: " . $e->getMessage());
+            // Log error with specific message for debugging
+            error_log("PDO Connection error details: " . $e->getMessage());
             // Throw exception to be caught by application
-            throw new Exception("Database connection error occurred. Please try again later.");
+            throw new Exception("Database connection error occurred: " . $e->getMessage());
         }
     }
 
@@ -66,10 +61,10 @@ class DatabaseConnection {
         // In a real production environment, these would come from environment variables
         // or a secure configuration file outside the web root
 
-        // For this example, we'll keep the same values but demonstrate the secure approach
+        // Use a consistent password across the application
         $this->host = 'localhost';
         $this->username = 'root';
-        $this->password = 'Chegengangav2.1';
+        $this->password = 'Justleo12#'; // Standardized on this password
         $this->dbname = 'shieldhub';
     }
 
@@ -83,15 +78,6 @@ class DatabaseConnection {
         }
         return self::$instance;
     }
-
-    /**
-     * REMOVED: Insecure mysqli connection method
-     */
-    /*
-    public function getConnection() {
-        return $this->conn;
-    }
-    */
 
     /**
      * Get PDO connection (secure)
@@ -122,17 +108,6 @@ class DatabaseConnection {
     }
 }
 
-// Database connection helper functions for quick access
-
-/**
- * REMOVED: Insecure mysqli connection method
- */
-/*
-function getDbConnection() {
-    return DatabaseConnection::getInstance()->getConnection();
-}
-*/
-
 /**
  * Get secure PDO connection
  * @throws Exception
@@ -142,7 +117,7 @@ function getSecureDbConnection(): PDO
     try {
         return DatabaseConnection::getInstance()->getPDO();
     } catch (Exception $e) {
-        // Log the error
+        // Log the detailed error
         error_log("Failed to get secure database connection: " . $e->getMessage());
         // Re-throw to be handled by the application
         throw $e;
